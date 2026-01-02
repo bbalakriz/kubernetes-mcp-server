@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
