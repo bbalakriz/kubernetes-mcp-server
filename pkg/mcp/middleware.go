@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -53,6 +54,39 @@ func toolCallLoggingMiddleware(next mcp.MethodHandler) mcp.MethodHandler {
 			for i, content := range callToolResult.Content {
 				if textContent, ok := content.(*mcp.TextContent); ok {
 					klog.V(6).Infof("mcp tool response[%d]: %s", i, textContent.Text)
+				}
+			}
+			
+			// Log the entire result as JSON to see what actually gets sent over the wire
+			// This is critical for debugging JSON parsing errors in clients
+			if klog.V(6).Enabled() {
+				// Marshal without indentation (same as what goes over the wire)
+				if resultJSON, err := json.Marshal(callToolResult); err == nil {
+					klog.V(6).Infof("CallToolResult as JSON (length=%d): %s", len(resultJSON), string(resultJSON))
+					
+					// Log character map for first 200 chars to help debug parsing errors
+					if len(resultJSON) > 0 {
+						endPos := 200
+						if len(resultJSON) < 200 {
+							endPos = len(resultJSON)
+						}
+						klog.V(7).Infof("First %d characters with positions:", endPos)
+						klog.V(7).Infof("0         10        20        30        40        50        60        70        80        90        100")
+						klog.V(7).Infof("|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|")
+						klog.V(7).Infof("%s", string(resultJSON[0:endPos]))
+						
+						// Show byte values for debugging encoding issues
+						var byteStr string
+						for i := 0; i < endPos && i < len(resultJSON); i++ {
+							if i > 0 && i%10 == 0 {
+								byteStr += " "
+							}
+							byteStr += fmt.Sprintf("%02x", resultJSON[i])
+						}
+						klog.V(7).Infof("Hex bytes: %s", byteStr)
+					}
+				} else {
+					klog.Errorf("Failed to marshal CallToolResult to JSON: %v", err)
 				}
 			}
 		}
