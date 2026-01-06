@@ -111,22 +111,42 @@ func (p *jsonOutput) PrintObj(obj runtime.Unstructured) (string, error) {
 	return MarshalJson(obj)
 }
 
+// sanitizeObject removes unnecessary and problematic fields from Kubernetes objects
+// to reduce payload size and prevent JSON parsing issues in LLMs
+func sanitizeObject(obj *unstructured.Unstructured) {
+	// Strip managedFields (saves ~80% of payload size)
+	obj.SetManagedFields(nil)
+
+	// Strip problematic annotations that can cause JSON parsing issues
+	// These annotations often contain large nested JSON strings that break parsers
+	annotations := obj.GetAnnotations()
+	if annotations != nil {
+		// OVN network configuration (large nested JSON)
+		delete(annotations, "k8s.ovn.org/pod-networks")
+		// CNI network status (nested JSON array)
+		delete(annotations, "k8s.v1.cni.cncf.io/network-status")
+		// kubectl last-applied-configuration (can be extremely large)
+		delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		obj.SetAnnotations(annotations)
+	}
+}
+
 func MarshalYaml(v any) (string, error) {
 	switch t := v.(type) {
 	//case unstructured.UnstructuredList:
 	//	for i := range t.Items {
-	//		t.Items[i].SetManagedFields(nil)
+	//		sanitizeObject(&t.Items[i])
 	//	}
 	//	v = t.Items
 	case *unstructured.UnstructuredList:
 		for i := range t.Items {
-			t.Items[i].SetManagedFields(nil)
+			sanitizeObject(&t.Items[i])
 		}
 		v = t.Items
 	//case unstructured.Unstructured:
-	//	t.SetManagedFields(nil)
+	//	sanitizeObject(&t)
 	case *unstructured.Unstructured:
-		t.SetManagedFields(nil)
+		sanitizeObject(t)
 	}
 	ret, err := yml.Marshal(v)
 	if err != nil {
@@ -139,11 +159,11 @@ func MarshalJson(v any) (string, error) {
 	switch t := v.(type) {
 	case *unstructured.UnstructuredList:
 		for i := range t.Items {
-			t.Items[i].SetManagedFields(nil)
+			sanitizeObject(&t.Items[i])
 		}
 		v = t.Items
 	case *unstructured.Unstructured:
-		t.SetManagedFields(nil)
+		sanitizeObject(t)
 	}
 	ret, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
