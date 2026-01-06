@@ -43,7 +43,21 @@ func toolCallLoggingMiddleware(next mcp.MethodHandler) mcp.MethodHandler {
 				}
 			}
 		}
-		return next(ctx, method, req)
+		
+		// Call the handler
+		result, err := next(ctx, method, req)
+		
+		// Log the response
+		if callToolResult, ok := result.(*mcp.CallToolResult); ok {
+			klog.V(5).Infof("mcp tool response: isError=%v, contentLength=%d", callToolResult.IsError, len(callToolResult.Content))
+			for i, content := range callToolResult.Content {
+				if textContent, ok := content.(*mcp.TextContent); ok {
+					klog.V(6).Infof("mcp tool response[%d]: %s", i, textContent.Text)
+				}
+			}
+		}
+		
+		return result, err
 	}
 }
 

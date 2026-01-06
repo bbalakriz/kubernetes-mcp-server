@@ -96,3 +96,6 @@ go test ./pkg/kubernetes-mcp-server/cmd/... -v -run TestEnvironmentVariables
 3. **No Breaking Changes:** All existing functionality preserved
 4. **Automatic Support:** All tools work with JSON without code changes
 
+
+
+
